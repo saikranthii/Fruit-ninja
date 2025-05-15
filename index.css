@@ -1,0 +1,263 @@
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #0A1A3A 0%, #2A1A3A 100%);
+    color: #f0f4ff;
+    overflow-x: hidden;
+}
+
+header {
+    background: linear-gradient(90deg, #1C2A5A, #3A2A6A);
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(10, 26, 58, 0.4);
+    border-bottom: 2px solid #ff5e62;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 2.8em;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    background: linear-gradient(45deg, #ff5e62, #00f2fe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.page {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: calc(100vh - 101px);
+    transition: opacity 0.5s ease;
+}
+
+.page.active {
+    display: flex;
+    opacity: 1;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    font-size: 1.2em;
+    color: #d4e1ff;
+}
+
+.checkbox-container input {
+    display: none;
+}
+
+.checkbox-container .checkmark {
+    width: 24px;
+    height: 24px;
+    background: #3A2A6A;
+    border: 2px solid #ff5e62;
+    border-radius: 4px;
+    margin-right: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.checkbox-container input:checked + .checkmark {
+    background: #ff5e62;
+}
+
+.checkbox-container input:checked + .checkmark::after {
+    content: '✔';
+    color: #f0f4ff;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+}
+
+#home-page button, #instructions-page button, #stop-button, #restart-button {
+    padding: 12px 40px;
+    font-size: 1.2em;
+    background: linear-gradient(45deg, #ff5e62, #ff2a7f);
+    border: none;
+    border-radius: 25px;
+    color: #f0f4ff;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease;
+    box-shadow: 0 4px 10px rgba(255, 94, 98, 0.4);
+}
+
+#home-page button:hover:not(:disabled), #instructions-page button:hover, #stop-button:hover, #restart-button:hover {
+    transform: scale(1.1);
+    background: linear-gradient(45deg, #ff2a7f, #00f2fe);
+}
+
+#home-page button:disabled {
+    background: #5A5A7A;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+#instructions-page h2 {
+    font-size: 2.2em;
+    margin-bottom: 20px;
+    color: #00f2fe;
+}
+
+#instructions-page p {
+    font-size: 1.2em;
+    text-align: center;
+    max-width: 600px;
+    margin: 10px 0;
+    line-height: 1.6;
+    color: #d4e1ff;
+}
+
+#game-page {
+    position: relative;
+    overflow: hidden;
+    background: rgba(10, 26, 58, 0.9);
+}
+
+#score-container {
+    position: absolute;
+    top: 1.5px;
+    right: 10px;
+    background: rgba(28, 42, 90, 0.7);
+    padding: 10px 20px;
+    border-radius: 10px;
+    display: flex;
+    gap: 20px;
+    z-index: 20;
+}
+
+#score, #timer {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #f0f4ff;
+}
+
+#webcam, #canvas {
+    position: absolute;
+    top: 50px;
+    right: 10px;
+    width: 320px;
+    height: 240px;
+    border-radius: 10px;
+    border: 1px solid #00f2fe;
+}
+#webcam {
+    transform: scaleX(-1); /* Mirror the webcam feed */
+}
+#canvas {
+    z-index: 15;
+}
+
+#game-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+#stop-button {
+    position: absolute;
+    bottom: 50px;
+
+}
+
+.finger-pointer {
+    position: absolute;
+    font-size: 3em;
+    pointer-events: none;
+    z-index: 25;
+    transition: left 0.05s linear, top 0.05s linear;
+    will-change: left, top;
+}
+
+.fruit, .bomb {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    font-size: 60px;
+    line-height: 100px;
+    text-align: center;
+    animation: fall 5s linear forwards;
+    border-radius: 50%;
+    z-index: 20;
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+.bomb {
+    animation-duration: 4s;
+}
+
+@keyframes fall {
+    from { transform: translateY(-100px); }
+    to { transform: translateY(100vh); }
+}
+
+.fruit.sliced, .bomb.sliced {
+    animation: slice 0.3s ease forwards;
+}
+
+@keyframes slice {
+    to { transform: scale(0.5); opacity: 0; }
+}
+
+.knife-symbol {
+    position: absolute;
+    font-size: 3em;
+    z-index: 25;
+    pointer-events: none;
+    color: #ffd700;
+}
+
+.game-over-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.2em;
+    color: #f0f4ff;
+    background: rgba(28, 42, 90, 0.9);
+    padding: 30px 60px;
+    border-radius: 20px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    opacity: 0;
+    z-index: 50;
+    border: 2px solid #ff5e62;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.game-over-message.visible {
+    opacity: 1;
+}
+
+#game-over-text {
+    display: block;
+}
+
+#restart-button {
+    margin-top: 20px;
+}
+
+@media (max-width: 600px) {
+    header h1 { font-size: 2em; }
+    #webcam, #canvas { width: 200px; height: 150px; }
+    #score-container { flex-direction: column; gap: 10px; padding: 8px 15px; }
+    .fruit, .bomb { width: 80px; height: 80px; font-size: 50px; line-height: 80px; }
+    #home-page button, #instructions-page button, #stop-button, #restart-button { padding: 10px 30px; font-size: 1em; }
+    .game-over-message { font-size: 2em; padding: 20px 40px; }
+    .checkbox-container .checkmark { width: 20px; height: 20px; }
+    .checkbox-container { font-size: 1em; }
+    #instructions-page h2 { font-size: 1.8em; }
+    #instructions-page p { font-size: 1em; }
+}

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Ninja</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <header>
+        <h1>Fruit Ninja</h1>
+    </header>
+    <div id="home-page" class="page active">
+        <label class="checkbox-container">
+            <input type="checkbox" id="hand-detection-checkbox">
+            <span class="checkmark"></span>
+            Enable Hand Detection
+        </label>
+        <button id="start-button" disabled>Start</button>
+    </div>
+    <div id="instructions-page" class="page">
+        <h2>How to Play</h2>
+        <p>Use your index finger to swipe across falling fruits to slice them.</p>
+        <p>Avoid slicing bombs (💣) or the game ends!</p>
+        <p>Score points for each fruit sliced within 1 minute.</p>
+        <p>Press the Stop button to end the game.</p>
+        <button id="ok-button">OK</button>
+    </div>
+    <div id="game-page" class="page">
+        <div id="score-container">
+            <span id="score">Score: 0</span>
+            <span id="timer">Time: 60s</span>
+        </div>
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="canvas" width="320" height="240"></canvas>
+        <div id="game-area">
+            <div id="finger-pointer" class="finger-pointer">🔪</div>
+        </div>
+        <button id="stop-button">Stop</button>
+        <div id="game-over-message" class="game-over-message">
+            <span id="game-over-text"></span>
+            <button id="restart-button">Restart</button>
+        </div>
+        <audio id="slice-sound" src="slice.mp3"></audio>
+        <audio id="gameover-sound" src="gameover.mp3"></audio>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+    <script>
+        const homePage = document.getElementById('home-page');
+        const instructionsPage = document.getElementById('instructions-page');
+        const gamePage = document.getElementById('game-page');
+        const startButton = document.getElementById('start-button');
+        const okButton = document.getElementById('ok-button');
+        const stopButton = document.getElementById('stop-button');
+        const restartButton = document.getElementById('restart-button');
+        const checkbox = document.getElementById('hand-detection-checkbox');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer');
+        const webcam = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const gameArea = document.getElementById('game-area');
+        const fingerPointer = document.getElementById('finger-pointer');
+        const gameOverMessage = document.getElementById('game-over-message');
+        const gameOverText = document.getElementById('game-over-text');
+        const sliceSound = document.getElementById('slice-sound');
+        const gameoverSound = document.getElementById('gameover-sound');
+        const ctx = canvas.getContext('2d');
+
+        let score = 0;
+        let timeLeft = 60;
+        let timerInterval;
+        let spawnInterval;
+        let camera;
+        let fruits = [];
+        let fruitCount = 0;
+        let bombCount = 0;
+        const maxFruits = 110;
+        const maxBombs = 25;
+        const fruitEmojis = {
+            'Mango': '🥭', 'Banana': '🍌', 'Apple': '🍎', 'Guava': '🍈', 'Papaya': '🥭',
+            'Pomegranate': '🍑', 'Orange': '🍊', 'Watermelon': '🍉', 'Grapes': '🍇', 'Lychee': '🍒',
+            'Pineapple': '🍍', 'Custard Apple': '🍈', 'Sapota': '🍑', 'Jackfruit': '🍈',
+            'Alphonso Mango': '🥭', 'Kesar Mango': '🥭', 'Muskmelon': '🍈', 'Tamarind': '🍈',
+            'Pear': '🍐', 'Strawberry': '🍓', 'Kiwi': '🥝'
+        };
+        const bombEmoji = '💣';
+
+        checkbox.addEventListener('change', () => {
+            startButton.disabled = !checkbox.checked;
+        });
+
+        startButton.addEventListener('click', () => {
+            homePage.classList.remove('active');
+            instructionsPage.classList.add('active');
+        });
+
+        okButton.addEventListener('click', () => {
+            instructionsPage.classList.remove('active');
+            gamePage.classList.add('active');
+            startGame();
+        });
+
+        stopButton.addEventListener('click', () => {
+            endGame(false);
+        });
+
+        restartButton.addEventListener('click', () => {
+            gameOverMessage.classList.remove('visible');
+            score = 0;
+            timeLeft = 60;
+            scoreDisplay.textContent = `Score: ${score}`;
+            timerDisplay.textContent = `Time: ${timeLeft}s`;
+            fruits.forEach(f => f.remove());
+            fruits = [];
+            fruitCount = 0;
+            bombCount = 0;
+            fingerPointer.style.display = 'none';
+            checkbox.checked = false;
+            startButton.disabled = true;
+            cancelAnimationFrame(pointerAnimationFrame);
+            gamePage.classList.remove('active');
+            homePage.classList.add('active');
+        });
+
+        async function startGame() {
+            fingerPointer.style.display = 'none';
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                webcam.srcObject = stream;
+                camera = new Camera(webcam, {
+                    onFrame: async () => {
+                        await hands.send({ image: webcam });
+                    },
+                    width: 320,
+                    height: 240
+                });
+                camera.start();
+                console.log('Camera initialized successfully');
+            } catch (err) {
+                console.error('Failed to initialize camera:', err);
+                gameOverText.textContent = 'Game Over! Final Score: 0';
+                gameOverMessage.classList.add('visible');
+                return;
+            }
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = `Time: ${timeLeft}s`;
+                if (timeLeft <= 0) endGame(true);
+            }, 1000);
+
+            spawnInterval = setInterval(spawnItem, 1200);
+            updatePointer();
+        }
+
+        function spawnItem() {
+            if (fruitCount >= maxFruits && bombCount >= maxBombs) {
+                clearInterval(spawnInterval);
+                return;
+            }
+
+            const totalItemsSpawned = fruitCount + bombCount;
+            const totalItems = maxFruits + maxBombs;
+            const bombProbability = totalItemsSpawned < totalItems ? (maxBombs - bombCount) / (totalItems - totalItemsSpawned) : 0;
+            const isBomb = Math.random() < bombProbability && bombCount < maxBombs;
+
+            if (isBomb && bombCount >= maxBombs) return;
+            if (!isBomb && fruitCount >= maxFruits) return;
+
+            const item = document.createElement('span');
+            item.classList.add(isBomb ? 'bomb' : 'fruit');
+            if (isBomb) {
+                item.textContent = bombEmoji;
+                bombCount++;
+            } else {
+                const type = Object.keys(fruitEmojis)[Math.floor(Math.random() * Object.keys(fruitEmojis).length)];
+                item.textContent = fruitEmojis[type];
+                fruitCount++;
+            }
+            const windowWidth = window.innerWidth;
+            const spawnRange = windowWidth - 100;
+            item.style.left = `${Math.random() * spawnRange}px`;
+            gameArea.appendChild(item);
+            fruits.push(item);
+
+            setTimeout(() => {
+                if (item.parentNode) {
+                    item.remove();
+                    fruits = fruits.filter(f => f !== item);
+                    if (item.classList.contains('bomb')) bombCount--;
+                    else fruitCount--;
+                }
+            }, 5000);
+        }
+
+        function endGame(playSound) {
+            clearInterval(timerInterval);
+            clearInterval(spawnInterval);
+            if (camera) camera.stop();
+            if (webcam.srcObject) {
+                webcam.srcObject.getTracks().forEach(track => track.stop());
+            }
+            fruits.forEach(f => f.remove());
+            fruits = [];
+            fruitCount = 0;
+            bombCount = 0;
+            fingerPointer.style.display = 'none';
+            cancelAnimationFrame(pointerAnimationFrame);
+            if (playSound) {
+                gameoverSound.play();
+                gameOverText.textContent = `Game Over! Final Score: ${score}`;
+                gameOverMessage.classList.add('visible');
+            }
+        }
+
+        const hands = new Hands({
+            locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 0,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        let lastIndexFinger = null;
+        let pointerAnimationFrame;
+
+        function updatePointer() {
+            pointerAnimationFrame = requestAnimationFrame(updatePointer);
+        }
+
+        hands.onResults(results => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawLandmarks(landmarks);
+                    const indexFinger = landmarks[8];
+                    const fingerX = (1 - indexFinger.x) * window.innerWidth;
+                    const fingerY = indexFinger.y * window.innerHeight;
+
+                    fingerPointer.style.display = 'block';
+                    fingerPointer.style.left = `${fingerX - 20}px`;
+                    fingerPointer.style.top = `${fingerY - 20}px`;
+
+                    if (lastIndexFinger) {
+                        checkSlice(fingerX, fingerY, lastIndexFinger.x, lastIndexFinger.y);
+                    }
+                    lastIndexFinger = { x: fingerX, y: fingerY };
+                }
+            } else {
+                fingerPointer.style.display = 'none';
+                lastIndexFinger = null;
+            }
+        });
+
+        function drawLandmarks(landmarks) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            const connections = [
+                [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8],
+                [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15],
+                [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]
+            ];
+            for (const [start, end] of connections) {
+                ctx.moveTo((1 - landmarks[start].x) * canvas.width, landmarks[start].y * canvas.height);
+                ctx.lineTo((1 - landmarks[end].x) * canvas.width, landmarks[end].y * canvas.height);
+            }
+            ctx.stroke();
+
+            for (const landmark of landmarks) {
+                ctx.beginPath();
+                ctx.arc((1 - landmark.x) * canvas.width, landmark.y * canvas.height, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#ff0000';
+                ctx.fill();
+            }
+        }
+
+        function checkSlice(x1, y1, x2, y2) {
+            for (let i = fruits.length - 1; i >= 0; i--) {
+                const fruit = fruits[i];
+                const rect = fruit.getBoundingClientRect();
+                const itemX = rect.left + rect.width / 2;
+                const itemY = rect.top + rect.height / 2;
+                if (lineIntersectsRect(x1, y1, x2, y2, rect)) {
+                    if (fruit.classList.contains('bomb')) {
+                        endGame(true);
+                    } else {
+                        score++;
+                        scoreDisplay.textContent = `Score: ${score}`;
+                        fruit.classList.add('sliced');
+                        sliceSound.play();
+                        const knifeSymbol = document.createElement('div');
+                        knifeSymbol.classList.add('knife-symbol');
+                        knifeSymbol.textContent = '🔪';
+                        knifeSymbol.style.left = `${itemX - 15}px`;
+                        knifeSymbol.style.top = `${itemY - 15}px`;
+                        gameArea.appendChild(knifeSymbol);
+                        setTimeout(() => knifeSymbol.remove(), 500);
+                        setTimeout(() => {
+                            fruit.remove();
+                            fruits.splice(i, 1);
+                            fruitCount--;
+                        }, 300);
+                    }
+                    break;
+                }
+            }
+        }
+
+        function lineIntersectsRect(x1, y1, x2, y2, rect) {
+            return (
+                lineIntersectsLine(x1, y1, x2, y2, rect.left, rect.top, rect.right, rect.top) ||
+                lineIntersectsLine(x1, y1, x2, y2, rect.right, rect.top, rect.right, rect.bottom) ||
+                lineIntersectsLine(x1, y1, x2, y2, rect.right, rect.bottom, rect.left, rect.bottom) ||
+                lineIntersectsLine(x1, y1, x2, y2, rect.left, rect.bottom, rect.left, rect.top)
+            );
+        }
+
+        function lineIntersectsLine(x1, y1, x2, y2, x3, y3, x4, y4) {
+            const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+            if (denom === 0) return false;
+            const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+            const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+            return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
+        }
+    </script>
+</body>
+</html>
